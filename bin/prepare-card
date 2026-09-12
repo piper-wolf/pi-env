@@ -127,6 +127,9 @@ sudo chown -R root:root "$workdir/root/opt/pi-env"
 sudo install -m 0644 "$repo_root/first-boot/user-data" "$workdir/boot/user-data"
 sudo install -m 0644 "$repo_root/first-boot/meta-data" "$workdir/boot/meta-data"
 sudo install -m 0644 "$repo_root/first-boot/network-config" "$workdir/boot/network-config"
+# Raspberry Pi OS also recognizes this marker on the boot partition and
+# enables the SSH service before cloud-init finishes package provisioning.
+sudo install -m 0644 /dev/null "$workdir/boot/ssh"
 
 # Replace the placeholder with the public key only in the boot copy.
 public_key=$(<"$github_key.pub")
