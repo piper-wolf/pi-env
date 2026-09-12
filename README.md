@@ -74,3 +74,15 @@ sudo pi-update --follow-main
 ```
 
 Major Raspberry Pi OS releases should be installed by preparing a new card.
+# Daily pigeon publishing
+
+Provisioning installs the tools and clones `~/repos/pigeon-queue` alongside the
+website. `/etc/cron.d/pigeon-queue` starts `pigeon-queue.service` daily at 10am
+America/Los_Angeles, following daylight saving. The service pulls both repos,
+publishes the first queued photo, and removes it only after the site push succeeds.
+The site and queue own their own pulls; provisioning clones them only if absent.
+
+Use `sudo pigeon-queue-service status`, `down`, or `recreate` on the Pi (or
+`bin/queue service ...` from the queue repo). `down` persists through automatic
+updates with `/var/lib/pi-env/pigeon-queue.disabled`; `recreate` restores the cron
+entry without publishing immediately. Logs: `journalctl -u pigeon-queue.service`.

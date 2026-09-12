@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $EUID == 0 ]] || { echo 'Run with sudo.' >&2; exit 1; }
+repo=/home/piper/repos/pi-env
+disabled=/var/lib/pi-env/pigeon-queue.disabled
+case "${1:-status}" in
+  down)
+    mkdir -p /var/lib/pi-env
+    touch "$disabled"
+    rm -f /etc/cron.d/pigeon-queue
+    # Wait for an in-flight import to finish; do not interrupt a Git transaction.
+    while [[ $(systemctl show pigeon-queue.service -p ActiveState --value) =~ ^(activating|active|deactivating)$ ]]; do sleep 1; done
+    echo 'Daily publishing is down. Repositories and history are preserved.' ;;
+  provision|recreate)
+    if [[ $1 == recreate ]]; then rm -f "$disabled"; fi
+    [[ ! -e $disabled ]] || { echo 'Pigeon queue is deliberately down.'; exit 0; }
+    install -m 0644 "$repo/systemd/pigeon-queue.service" /etc/systemd/system/pigeon-queue.service
+    install -m 0644 "$repo/cron/pigeon-queue" /etc/cron.d/pigeon-queue
+    systemctl daemon-reload
+    systemctl enable --now cron
+    echo 'Daily publishing scheduled for 10am America/Los_Angeles.' ;;
+  status)
+    if [[ -e $disabled ]]; then echo 'Daily publishing: down'; else echo 'Daily publishing: scheduled at 10am Pacific'; fi
+    systemctl show pigeon-queue.service -p ActiveState -p Result -p ExecMainStartTimestamp -p ExecMainStatus
+    journalctl -u pigeon-queue.service -n 15 --no-pager ;;
+  *) echo 'Usage: pigeon-queue-service {status|down|recreate|provision}' >&2; exit 1 ;;
+esac

@@ -1,0 +1,4 @@
+# The Pi uses America/Los_Angeles, so cron follows Pacific daylight saving.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+0 10 * * * root /usr/bin/systemctl start pigeon-queue.service

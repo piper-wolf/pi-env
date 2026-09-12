@@ -37,6 +37,14 @@ printf 'disk: '; df -h / | awk 'NR == 2 {print $4 " free of " $2}'
 printf 'pending reboot: '
 if [[ -e /var/run/reboot-required ]]; then echo yes; else echo no; fi
 printf 'update timer: '; systemctl is-active pi-env-update.timer 2>/dev/null || echo unavailable
+printf 'pigeon queue: '
+if [[ -e /var/lib/pi-env/pigeon-queue.disabled ]]; then
+  echo down
+elif [[ -f /etc/cron.d/pigeon-queue ]]; then
+  echo 'scheduled daily at 10am Pacific (America/Los_Angeles)'
+else
+  echo not-installed
+fi
 update_status=$(systemctl show pi-env-update.service -p ExecMainStatus --value 2>/dev/null || true)
 update_time=$(systemctl show pi-env-update.service -p ExecMainStartTimestamp --value 2>/dev/null || true)
 if [[ -n "$update_time" ]]; then

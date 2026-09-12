@@ -1,0 +1,17 @@
+[Unit]
+Description=Publish the next queued pigeon photo
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=!/var/lib/pi-env/pigeon-queue.disabled
+
+[Service]
+Type=oneshot
+User=piper
+WorkingDirectory=/home/piper/repos/pigeon-queue
+Environment=HOME=/home/piper
+Environment=TZ=America/Los_Angeles
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+# Load today's script only after refreshing the checkout. The publisher pulls
+# again under its lock before selecting a photo.
+ExecStart=/bin/bash -c 'test -z "$(git status --porcelain)" && git pull --ff-only origin main && exec bin/publish'
+TimeoutStartSec=30min

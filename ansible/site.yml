@@ -23,6 +23,11 @@
           - libnss-mdns
           - rsync
           - unattended-upgrades
+          - cron
+          - imagemagick
+          - libimage-exiftool-perl
+          - jq
+          - util-linux
         state: present
         update_cache: true
 
@@ -88,8 +93,41 @@
         repo: "{{ website_repo }}"
         dest: "{{ pi_home }}/repos/piper-wolf.github.io"
         version: main
-        update: true
+        update: false
         accept_hostkey: false
+
+    - name: Clone pigeon queue checkout
+      become_user: "{{ pi_user }}"
+      ansible.builtin.git:
+        repo: git@github.com:piper-wolf/pigeon-queue.git
+        dest: "{{ pi_home }}/repos/pigeon-queue"
+        version: main
+        update: false
+        accept_hostkey: false
+
+    - name: Set Pacific timezone for daily cron jobs
+      ansible.builtin.file:
+        src: /usr/share/zoneinfo/America/Los_Angeles
+        dest: /etc/localtime
+        state: link
+        force: true
+
+    - name: Install pigeon queue service control
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/bin/pigeon-queue-service"
+        dest: /usr/local/sbin/pigeon-queue-service
+        mode: '0755'
+        remote_src: true
+
+    - name: Install pigeon queue cron and service unless deliberately down
+      ansible.builtin.command: /usr/local/sbin/pigeon-queue-service provision
+      changed_when: false
+
+    - name: Enable cron
+      ansible.builtin.systemd:
+        name: cron
+        enabled: true
+        state: started
 
     - name: Install update command
       ansible.builtin.copy:
