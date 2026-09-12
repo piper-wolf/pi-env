@@ -16,6 +16,8 @@ users:
       - __PI_ENV_SSH_KEY_INJECTED_BY_PREPARE_CARD__
 package_update: true
 package_upgrade: false
+apt_retries: 10
+apt_retry_interval: 15
 packages:
   - ca-certificates
   - curl
@@ -42,6 +44,10 @@ write_files:
 
       [Service]
       Type=oneshot
+      RemainAfterExit=yes
+      TimeoutStartSec=0
+      StandardOutput=journal+console
+      StandardError=journal+console
       ExecStart=/opt/pi-env/first-boot/bootstrap.sh
       Restart=on-failure
       RestartSec=30s
@@ -50,4 +56,7 @@ write_files:
       WantedBy=multi-user.target
 runcmd:
   - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, ssh]
   - [systemctl, enable, --now, pi-env-bootstrap.service]
+
+final_message: "pi-env cloud-init finished; inspect /boot/firmware/pi-env-status if remote access is unavailable."

@@ -18,9 +18,15 @@ console. Keep it in a root-readable file outside this repository. Then run:
 cd ~/repos/pi-env
 bin/prepare-card \
   --device /dev/disk/by-id/usb-Mass_Storage_Device_121220160204-0:0 \
-  --github-key ~/.ssh/id_ed25519 \
   --tailscale-auth-key-file /path/to/tailscale-auth-key
 ```
+
+The command creates a dedicated, passphrase-free Pi GitHub key at
+`~/Downloads/piper-pi-github` (and its `.pub` file), injects only the private
+key into the Pi, and records the public key and fingerprint under
+`~/.config/pi-env/`. Add the `.pub` file to the GitHub account that owns the
+repositories; GitHub never needs the private key. The local computer's existing
+`~/.ssh/id_ed25519.pub` is used only to authorize SSH login to the Pi.
 
 The command requires `sudo`, checks that the device is removable and at least
 8 GiB, verifies the image checksum, writes the image, and unmounts it before
@@ -29,6 +35,13 @@ identity before accepting the destructive write.
 
 Put the card in the Pi and connect Ethernet before applying power. First boot
 usually takes several minutes while packages and Tailscale are installed.
+
+The bootstrap writes a secret-free status report to both
+`/var/lib/pi-env/status` and the boot partition as `pi-env-status`. If the Pi
+does not become reachable, power it down, remove the card, mount its boot
+partition on this computer, and read that file before reimaging. It identifies
+the last completed phase (for example `waiting-for-network`,
+`authenticating-tailscale`, or `configuring`) without exposing credentials.
 
 ```sh
 ssh pi

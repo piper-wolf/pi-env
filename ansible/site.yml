@@ -35,7 +35,7 @@
         content: |
           Host github.com
             User git
-            IdentityFile ~/.ssh/id_ed25519
+            IdentityFile ~/.ssh/piper-pi-github
             IdentitiesOnly yes
             StrictHostKeyChecking yes
 

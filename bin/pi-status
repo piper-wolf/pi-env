@@ -4,6 +4,14 @@ set -u
 repo=/home/piper/repos/pi-env
 printf 'hostname: %s\n' "$(hostname)"
 printf 'uptime: %s\n' "$(uptime -p 2>/dev/null || true)"
+if [[ -f /var/lib/pi-env/status ]]; then
+  printf 'bootstrap status:\n'
+  sed 's/^/  /' /var/lib/pi-env/status
+else
+  printf 'bootstrap status: not recorded\n'
+fi
+printf 'cloud-init: '; cloud-init status 2>/dev/null || echo unavailable
+printf 'bootstrap service: '; systemctl is-active pi-env-bootstrap.service 2>/dev/null || echo unavailable
 if [[ -f /var/lib/pi-env/successful-revision ]]; then
   printf 'successful revision: %s\n' "$(cat /var/lib/pi-env/successful-revision)"
 else
