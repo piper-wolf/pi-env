@@ -9,6 +9,11 @@ mkdir -p "$state"
 exec >>"$log" 2>&1
 printf '%s bootstrap started\n' "$(date --iso-8601=seconds)"
 
+if [[ -e "$state/bootstrap-complete" ]]; then
+  printf '%s bootstrap already complete\n' "$(date --iso-8601=seconds)"
+  exit 0
+fi
+
 # The key is injected before first boot, before cloud-init creates piper.
 # Normalize ownership here so image UID allocation cannot affect SSH access.
 install -d -m 0700 -o piper -g piper /home/piper/.ssh
@@ -47,4 +52,5 @@ if ! command -v ansible-playbook >/dev/null 2>&1; then
 fi
 
 ansible-playbook --connection=local --inventory=localhost, "$repo/ansible/site.yml"
+touch "$state/bootstrap-complete"
 printf '%s bootstrap complete\n' "$(date --iso-8601=seconds)"
