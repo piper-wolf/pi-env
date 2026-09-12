@@ -20,6 +20,8 @@ packages:
   - curl
   - git
   - openssh-server
+  - avahi-daemon
+  - libnss-mdns
 write_files:
   - path: /etc/ssh/sshd_config.d/99-pi-env.conf
     permissions: '0644'

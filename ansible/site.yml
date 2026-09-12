@@ -19,6 +19,8 @@
           - curl
           - ca-certificates
           - openssh-client
+          - avahi-daemon
+          - libnss-mdns
           - rsync
           - unattended-upgrades
         state: present
