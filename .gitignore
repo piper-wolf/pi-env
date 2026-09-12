@@ -1,0 +1,12 @@
+# Local image downloads and provisioning secrets
+.cache/
+*.img
+*.img.xz
+*.raw
+*.key
+*.secret
+
+# Ansible and editor artifacts
+*.retry
+__pycache__/
+.ansible/

@@ -1,0 +1,32 @@
+#cloud-config
+hostname: piper-pi
+manage_etc_hosts: true
+timezone: America/Los_Angeles
+ssh_pwauth: false
+disable_root: true
+users:
+  - name: piper
+    gecos: Piper Wolf
+    groups: [adm, sudo, audio, video, plugdev, netdev, gpio, i2c, spi]
+    shell: /bin/bash
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - __PI_ENV_SSH_KEY_INJECTED_BY_PREPARE_CARD__
+package_update: true
+package_upgrade: false
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - openssh-server
+write_files:
+  - path: /etc/ssh/sshd_config.d/99-pi-env.conf
+    permissions: '0644'
+    content: |
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      PubkeyAuthentication yes
+runcmd:
+  - [bash, -c, "install -d -m 0755 /usr/local/sbin && /opt/pi-env/first-boot/bootstrap.sh"]

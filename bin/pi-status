@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -u
+
+repo=/home/piper/repos/pi-env
+printf 'hostname: %s\n' "$(hostname)"
+printf 'uptime: %s\n' "$(uptime -p 2>/dev/null || true)"
+if [[ -f /var/lib/pi-env/successful-revision ]]; then
+  printf 'successful revision: %s\n' "$(cat /var/lib/pi-env/successful-revision)"
+else
+  printf 'successful revision: not recorded\n'
+fi
+if [[ -d "$repo/.git" ]]; then
+  printf 'checkout: %s\n' "$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || echo unavailable)"
+  printf 'checkout state: %s\n' "$(git -C "$repo" status --short --branch 2>/dev/null | head -1 || echo unavailable)"
+fi
+printf 'tailscale: '
+if command -v tailscale >/dev/null 2>&1; then
+  tailscale status --self --peers=false 2>/dev/null || echo unavailable
+else
+  echo not-installed
+fi
+printf 'disk: '; df -h / | awk 'NR == 2 {print $4 " free of " $2}'
+printf 'pending reboot: '
+if [[ -e /var/run/reboot-required ]]; then echo yes; else echo no; fi
+printf 'update timer: '; systemctl is-active pi-env-update.timer 2>/dev/null || echo unavailable
+printf 'last update: '; systemctl show pi-env-update.service -p ExecMainStatus -p ActiveEnterTimestamp --value 2>/dev/null | tr '\n' ' '; printf '\n'

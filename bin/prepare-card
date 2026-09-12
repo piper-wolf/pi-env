@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+# shellcheck source=/dev/null
+source "$repo_root/config/image.env"
+
+device=''
+github_key="$HOME/.ssh/id_ed25519"
+tailscale_key_file=''
+image_cache="$repo_root/.cache"
+force=0
+
+usage() {
+  cat <<'EOF'
+Usage: bin/prepare-card --device DEVICE --tailscale-auth-key-file FILE [options]
+Options:
+  --device DEVICE                    Whole removable disk, never a partition
+  --github-key FILE                  Unencrypted GitHub private key (default: ~/.ssh/id_ed25519)
+  --tailscale-auth-key-file FILE     One-use Tailscale auth key, outside the repo
+  --image-cache DIR                  Cache directory (default: .cache)
+  --force                            Skip the final destructive-write prompt
+EOF
+}
+
+die() { printf 'prepare-card: %s\n' "$*" >&2; exit 1; }
+
+while (($#)); do
+  case "$1" in
+    --device) [[ $# -ge 2 ]] || die '--device needs a value'; device=$2; shift 2 ;;
+    --github-key) [[ $# -ge 2 ]] || die '--github-key needs a value'; github_key=$2; shift 2 ;;
+    --tailscale-auth-key-file) [[ $# -ge 2 ]] || die '--tailscale-auth-key-file needs a value'; tailscale_key_file=$2; shift 2 ;;
+    --image-cache) [[ $# -ge 2 ]] || die '--image-cache needs a value'; image_cache=$2; shift 2 ;;
+    --force) force=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown option: $1" ;;
+  esac
+done
+
+[[ -n "$device" ]] || { usage >&2; die '--device is required'; }
+[[ -n "$tailscale_key_file" ]] || { usage >&2; die '--tailscale-auth-key-file is required'; }
+[[ $EUID -ne 0 ]] || die 'run as your normal user; the script invokes sudo when needed'
+[[ -f "$github_key" && -r "$github_key" ]] || die "GitHub key is not readable: $github_key"
+[[ -f "$github_key.pub" && -r "$github_key.pub" ]] || die "GitHub public key is not readable: $github_key.pub"
+[[ -s "$tailscale_key_file" && -r "$tailscale_key_file" ]] || die "Tailscale key file is not readable: $tailscale_key_file"
+command -v sudo >/dev/null || die 'sudo is required'
+command -v curl >/dev/null || die 'curl is required'
+command -v sha256sum >/dev/null || die 'sha256sum is required'
+command -v lsblk >/dev/null || die 'lsblk is required'
+command -v udevadm >/dev/null || die 'udevadm is required'
+
+resolved_device=$(readlink -f -- "$device" 2>/dev/null || true)
+[[ -b "$resolved_device" ]] || die "not a block device: $device"
+[[ "$resolved_device" != /dev/*[0-9] ]] || die "use the whole disk, not a partition: $resolved_device"
+device_type=$(lsblk -dnro TYPE -- "$resolved_device")
+device_rm=$(lsblk -dnro RM -- "$resolved_device")
+device_size=$(lsblk -dnbo SIZE -- "$resolved_device")
+[[ "$device_type" == disk ]] || die "not a disk: $resolved_device"
+[[ "$device_rm" == 1 ]] || die "device is not marked removable: $resolved_device"
+(( device_size >= 8 * 1024 * 1024 * 1024 )) || die 'device is smaller than 8 GiB'
+
+printf 'Selected device: %s (%s bytes, removable=%s)\n' "$resolved_device" "$device_size" "$device_rm"
+lsblk -o NAME,PATH,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINTS,MODEL -- "$resolved_device"
+if (( ! force )); then
+  read -r -p "Type ERASE $resolved_device to continue: " confirmation
+  [[ "$confirmation" == "ERASE $resolved_device" ]] || die 'write cancelled'
+fi
+
+mkdir -p -- "$image_cache"
+image_archive="$image_cache/$(basename -- "$IMAGE_URL")"
+if [[ ! -f "$image_archive" ]]; then
+  curl --fail --location --retry 5 --retry-delay 2 --output "$image_archive.part" "$IMAGE_URL"
+  mv -- "$image_archive.part" "$image_archive"
+fi
+printf '%s  %s\n' "$IMAGE_SHA256" "$image_archive" | sha256sum --check --strict
+
+image="${image_archive%.xz}"
+if [[ ! -f "$image" ]]; then
+  xz --decompress --keep --stdout "$image_archive" > "$image.part"
+  mv -- "$image.part" "$image"
+fi
+
+mapfile -t mounted < <(lsblk -nrpo MOUNTPOINT "$resolved_device" | awk 'NF')
+for mountpoint in "${mounted[@]}"; do
+  sudo umount -- "$mountpoint"
+done
+
+sudo dd if="$image" of="$resolved_device" bs=16M conv=fsync status=progress
+sudo partprobe "$resolved_device"
+sudo udevadm settle
+
+boot_partition=$(lsblk -nrpo NAME,FSTYPE "$resolved_device" | awk '$2 == "vfat" {print $1; exit}')
+root_partition=$(lsblk -nrpo NAME,FSTYPE "$resolved_device" | awk '$2 == "ext4" {print $1; exit}')
+[[ -n "$boot_partition" && -n "$root_partition" ]] || die 'could not find vfat boot and ext4 root partitions after flashing'
+
+workdir=$(mktemp -d)
+cleanup() {
+  sudo umount -- "$workdir/root/boot/firmware" 2>/dev/null || true
+  sudo umount -- "$workdir/root" 2>/dev/null || true
+  sudo umount -- "$workdir/boot" 2>/dev/null || true
+  rm -rf -- "$workdir"
+}
+trap cleanup EXIT
+mkdir -p "$workdir/boot" "$workdir/root" "$workdir/root/boot/firmware"
+sudo mount -- "$boot_partition" "$workdir/boot"
+sudo mount -- "$root_partition" "$workdir/root"
+
+# The default cloud-init user is created as UID 1000 by the image.
+sudo install -d -m 0700 -o 1000 -g 1000 "$workdir/root/home/piper/.ssh"
+sudo install -m 0600 -o 1000 -g 1000 "$github_key" "$workdir/root/home/piper/.ssh/id_ed25519"
+sudo install -m 0644 -o 1000 -g 1000 "$github_key.pub" "$workdir/root/home/piper/.ssh/id_ed25519.pub"
+sudo install -m 0600 -o root -g root "$tailscale_key_file" "$workdir/root/root/pi-env.tailscale-auth-key"
+
+github_host_keys=$(ssh-keyscan -T 10 -t ed25519 github.com 2>/dev/null || true)
+[[ -n "$github_host_keys" ]] || die 'could not retrieve GitHub host key'
+printf '%s\n' "$github_host_keys" | sudo tee "$workdir/root/home/piper/.ssh/known_hosts" >/dev/null
+sudo chown 1000:1000 "$workdir/root/home/piper/.ssh/known_hosts"
+sudo chmod 0644 "$workdir/root/home/piper/.ssh/known_hosts"
+
+sudo install -d -m 0755 "$workdir/root/opt/pi-env"
+sudo cp -a -- "$repo_root/." "$workdir/root/opt/pi-env/"
+sudo chown -R root:root "$workdir/root/opt/pi-env"
+
+sudo install -m 0644 "$repo_root/first-boot/user-data" "$workdir/boot/user-data"
+sudo install -m 0644 "$repo_root/first-boot/meta-data" "$workdir/boot/meta-data"
+sudo install -m 0644 "$repo_root/first-boot/network-config" "$workdir/boot/network-config"
+
+# Replace the placeholder with the public key only in the boot copy.
+public_key=$(<"$github_key.pub")
+sudo sed -i "s|__PI_ENV_SSH_KEY_INJECTED_BY_PREPARE_CARD__|$public_key|" "$workdir/boot/user-data"
+sudo sync
+printf 'Card prepared successfully. The card is unmounted and ready for the Pi.\n'

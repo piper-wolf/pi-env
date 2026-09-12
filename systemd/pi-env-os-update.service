@@ -1,0 +1,8 @@
+[Unit]
+Description=Install Raspberry Pi OS package updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pi-update --os

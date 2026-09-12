@@ -1,0 +1,134 @@
+---
+- name: Configure piper-pi
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+  vars:
+    pi_env_repo: git@github.com:piper-wolf/pi-env.git
+    pi_env_version: main
+    website_repo: git@github.com:piper-wolf/piper-wolf.github.io.git
+    pi_env_dir: /home/piper/repos/pi-env
+    pi_user: piper
+    pi_home: /home/piper
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - git
+          - curl
+          - ca-certificates
+          - openssh-client
+          - rsync
+          - unattended-upgrades
+        state: present
+        update_cache: true
+
+    - name: Install SSH client configuration
+      ansible.builtin.copy:
+        dest: "{{ pi_home }}/.ssh/config"
+        owner: "{{ pi_user }}"
+        group: "{{ pi_user }}"
+        mode: '0600'
+        content: |
+          Host github.com
+            User git
+            IdentityFile ~/.ssh/id_ed25519
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+
+    - name: Configure Git author name
+      become_user: "{{ pi_user }}"
+      ansible.builtin.command: git config --global user.name "Piper Wolf"
+      changed_when: false
+
+    - name: Configure Git author email
+      become_user: "{{ pi_user }}"
+      ansible.builtin.command: git config --global user.email "piper.w.wolf@gmail.com"
+      changed_when: false
+
+    - name: Create repository directory
+      ansible.builtin.file:
+        path: "{{ pi_home }}/repos"
+        state: directory
+        owner: "{{ pi_user }}"
+        group: "{{ pi_user }}"
+        mode: '0755'
+
+    - name: Clone pi-env checkout
+      become_user: "{{ pi_user }}"
+      ansible.builtin.git:
+        repo: "{{ pi_env_repo }}"
+        dest: "{{ pi_home }}/repos/pi-env"
+        version: "{{ pi_env_version }}"
+        update: true
+        accept_hostkey: false
+
+    - name: Clone website checkout
+      become_user: "{{ pi_user }}"
+      ansible.builtin.git:
+        repo: "{{ website_repo }}"
+        dest: "{{ pi_home }}/repos/piper-wolf.github.io"
+        version: main
+        update: true
+        accept_hostkey: false
+
+    - name: Install update command
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/bin/pi-update"
+        dest: /usr/local/sbin/pi-update
+        mode: '0755'
+        remote_src: true
+
+    - name: Install status command
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/bin/pi-status"
+        dest: /usr/local/bin/pi-status
+        mode: '0755'
+        remote_src: true
+
+    - name: Install update service
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/systemd/pi-env-update.service"
+        dest: /etc/systemd/system/pi-env-update.service
+        mode: '0644'
+        remote_src: true
+
+    - name: Install update timer
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/systemd/pi-env-update.timer"
+        dest: /etc/systemd/system/pi-env-update.timer
+        mode: '0644'
+        remote_src: true
+
+    - name: Install OS update timer
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/systemd/pi-env-os-update.timer"
+        dest: /etc/systemd/system/pi-env-os-update.timer
+        mode: '0644'
+        remote_src: true
+
+    - name: Install OS update service
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/systemd/pi-env-os-update.service"
+        dest: /etc/systemd/system/pi-env-os-update.service
+        mode: '0644'
+        remote_src: true
+
+    - name: Enable automatic update timers
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+        daemon_reload: true
+      loop:
+        - pi-env-update.timer
+        - pi-env-os-update.timer
+
+    - name: Record successful configuration revision
+      ansible.builtin.shell: |
+        set -o pipefail
+        git -C "{{ pi_home }}/repos/pi-env" rev-parse HEAD > /var/lib/pi-env/successful-revision
+      args:
+        executable: /bin/bash
+        creates: /var/lib/pi-env/successful-revision

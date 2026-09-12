@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+IFS=$'\n\t'
+
+repo=/home/piper/repos/pi-env
+lock=/run/lock/pi-env-update.lock
+os_update=0
+mode=follow
+revision=''
+
+while (($#)); do
+  case "$1" in
+    --os) os_update=1; shift ;;
+    --pin) [[ $# -ge 2 ]] || { echo '--pin requires a commit' >&2; exit 2; }; mode=pin; revision=$2; shift 2 ;;
+    --follow-main) mode=follow; shift ;;
+    -h|--help) echo 'Usage: sudo pi-update [--os] [--pin COMMIT|--follow-main]'; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; exit 2 ;;
+  esac
+done
+
+[[ $EUID -eq 0 ]] || { echo 'pi-update must run as root' >&2; exit 1; }
+install -d -m 0755 /run/lock /var/lib/pi-env
+exec 9>"$lock"
+flock -n 9 || { echo 'another pi update is already running' >&2; exit 0; }
+
+if [[ ! -d "$repo/.git" ]]; then
+  install -d -o piper -g piper /home/piper/repos
+  sudo -u piper git clone git@github.com:piper-wolf/pi-env.git "$repo"
+fi
+
+sudo -u piper git -C "$repo" fetch --prune origin main
+if [[ "$mode" == pin ]]; then
+  sudo -u piper git -C "$repo" checkout --detach "$revision"
+  ansible_version="$revision"
+else
+  sudo -u piper git -C "$repo" checkout --detach origin/main
+  ansible_version=origin/main
+fi
+
+ansible-playbook --connection=local --inventory=localhost, \
+  -e "pi_env_version=$ansible_version" "$repo/ansible/site.yml"
+git_revision=$(sudo -u piper git -C "$repo" rev-parse HEAD)
+printf '%s\n' "$git_revision" > /var/lib/pi-env/successful-revision
+chmod 0644 /var/lib/pi-env/successful-revision
+if (( os_update )); then
+  apt-get update
+  DEBIAN_FRONTEND=noninteractive apt-get -y full-upgrade
+fi
+printf 'Applied pi-env revision %s\n' "$git_revision"
