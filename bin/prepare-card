@@ -137,6 +137,7 @@ sudo mount -- "$boot_partition" "$workdir/boot"
 sudo mount -- "$root_partition" "$workdir/root"
 
 # The default cloud-init user is created as UID 1000 by the image.
+sudo install -d -m 0755 -o 1000 -g 1000 "$workdir/root/home/piper"
 sudo install -d -m 0700 -o 1000 -g 1000 "$workdir/root/home/piper/.ssh"
 sudo install -m 0600 -o 1000 -g 1000 "$github_key" "$workdir/root/home/piper/.ssh/piper-pi-github"
 sudo install -m 0600 -o root -g root "$tailscale_key_file" "$workdir/root/root/pi-env.tailscale-auth-key"
