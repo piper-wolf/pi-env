@@ -119,7 +119,9 @@ sudo chown 1000:1000 "$workdir/root/home/piper/.ssh/known_hosts"
 sudo chmod 0644 "$workdir/root/home/piper/.ssh/known_hosts"
 
 sudo install -d -m 0755 "$workdir/root/opt/pi-env"
-sudo cp -a -- "$repo_root/." "$workdir/root/opt/pi-env/"
+for path in README.md .gitignore ansible bin config first-boot systemd; do
+  sudo cp -a -- "$repo_root/$path" "$workdir/root/opt/pi-env/$path"
+done
 sudo chown -R root:root "$workdir/root/opt/pi-env"
 
 sudo install -m 0644 "$repo_root/first-boot/user-data" "$workdir/boot/user-data"
