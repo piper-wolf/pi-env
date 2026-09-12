@@ -47,6 +47,14 @@
         group: "{{ pi_user }}"
         mode: '0755'
 
+    - name: Restrict netplan configuration permissions
+      ansible.builtin.file:
+        path: /lib/netplan/00-network-manager-all.yaml
+        owner: root
+        group: root
+        mode: '0600'
+        state: file
+
     - name: Configure Git author name
       become_user: "{{ pi_user }}"
       ansible.builtin.command: git config --global user.name "Piper Wolf"
