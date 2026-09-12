@@ -39,6 +39,14 @@
             IdentitiesOnly yes
             StrictHostKeyChecking yes
 
+    - name: Ensure piper owns the home directory
+      ansible.builtin.file:
+        path: "{{ pi_home }}"
+        state: directory
+        owner: "{{ pi_user }}"
+        group: "{{ pi_user }}"
+        mode: '0755'
+
     - name: Configure Git author name
       become_user: "{{ pi_user }}"
       ansible.builtin.command: git config --global user.name "Piper Wolf"
@@ -130,7 +138,8 @@
     - name: Record successful configuration revision
       ansible.builtin.shell: |
         set -o pipefail
-        git -C "{{ pi_home }}/repos/pi-env" rev-parse HEAD > /var/lib/pi-env/successful-revision
+        git -c safe.directory="{{ pi_home }}/repos/pi-env" \
+          -C "{{ pi_home }}/repos/pi-env" rev-parse HEAD > /var/lib/pi-env/successful-revision
       args:
         executable: /bin/bash
         creates: /var/lib/pi-env/successful-revision

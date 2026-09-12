@@ -10,7 +10,13 @@ if [[ -f /var/lib/pi-env/status ]]; then
 else
   printf 'bootstrap status: not recorded\n'
 fi
-printf 'cloud-init: '; cloud-init status 2>/dev/null || echo unavailable
+printf 'cloud-init: '
+if command -v cloud-init >/dev/null 2>&1; then
+  cloud_init_status=$(cloud-init status 2>&1) || true
+  printf '%s\n' "$cloud_init_status"
+else
+  echo unavailable
+fi
 printf 'bootstrap service: '; systemctl is-active pi-env-bootstrap.service 2>/dev/null || echo unavailable
 if [[ -f /var/lib/pi-env/successful-revision ]]; then
   printf 'successful revision: %s\n' "$(cat /var/lib/pi-env/successful-revision)"

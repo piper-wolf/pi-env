@@ -98,9 +98,16 @@ if ! command -v tailscale >/dev/null 2>&1; then
   curl --fail --silent --show-error https://tailscale.com/install.sh | sh
 fi
 
-if [[ -s /root/pi-env.tailscale-auth-key && ! -s /var/lib/tailscale/tailscaled.state ]]; then
+if ! tailscale ip -4 >/dev/null 2>&1; then
+  if [[ ! -s /root/pi-env.tailscale-auth-key ]]; then
+    write_status failed tailscale-auth-key-missing
+    exit 1
+  fi
   write_status authenticating-tailscale
   tailscale up --ssh --auth-key="file:/root/pi-env.tailscale-auth-key" --hostname=piper-pi
+  tailscale ip -4 >/dev/null
+  shred --remove /root/pi-env.tailscale-auth-key
+elif [[ -s /root/pi-env.tailscale-auth-key ]]; then
   shred --remove /root/pi-env.tailscale-auth-key
 fi
 
