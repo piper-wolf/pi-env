@@ -37,4 +37,10 @@ printf 'disk: '; df -h / | awk 'NR == 2 {print $4 " free of " $2}'
 printf 'pending reboot: '
 if [[ -e /var/run/reboot-required ]]; then echo yes; else echo no; fi
 printf 'update timer: '; systemctl is-active pi-env-update.timer 2>/dev/null || echo unavailable
-printf 'last update: '; systemctl show pi-env-update.service -p ExecMainStatus -p ActiveEnterTimestamp --value 2>/dev/null | tr '\n' ' '; printf '\n'
+update_status=$(systemctl show pi-env-update.service -p ExecMainStatus --value 2>/dev/null || true)
+update_time=$(systemctl show pi-env-update.service -p ExecMainStartTimestamp --value 2>/dev/null || true)
+if [[ -n "$update_time" ]]; then
+  printf 'last update: %s (exit %s)\n' "$update_time" "${update_status:-unknown}"
+else
+  printf 'last update: never\n'
+fi

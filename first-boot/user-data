@@ -23,6 +23,28 @@ packages:
   - openssh-server
   - avahi-daemon
   - libnss-mdns
+cloud_final_modules:
+  # The pinned Raspberry Pi image lists netplan_nm_patch but does not ship
+  # that module; keeping the supported final modules avoids a degraded status.
+  - package_update_upgrade_install
+  - write_files_deferred
+  - puppet
+  - chef
+  - ansible
+  - mcollective
+  - salt_minion
+  - reset_rmc
+  - scripts_vendor
+  - scripts_per_once
+  - scripts_per_boot
+  - scripts_per_instance
+  - scripts_user
+  - ssh_authkey_fingerprints
+  - keys_to_console
+  - install_hotplug
+  - phone_home
+  - final_message
+  - power_state_change
 write_files:
   - path: /etc/ssh/sshd_config.d/99-pi-env.conf
     permissions: '0644'
