@@ -143,6 +143,13 @@
         mode: '0755'
         remote_src: true
 
+    - name: Install SSH password enrollment command
+      ansible.builtin.copy:
+        src: "{{ pi_env_dir }}/bin/pi-ssh-password-auth"
+        dest: /usr/local/sbin/pi-ssh-password-auth
+        mode: '0755'
+        remote_src: true
+
     - name: Install update service
       ansible.builtin.copy:
         src: "{{ pi_env_dir }}/systemd/pi-env-update.service"

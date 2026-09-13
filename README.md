@@ -54,6 +54,38 @@ all repositories that key can access. The website repository is cloned during
 first boot to `~/repos/piper-wolf.github.io`. The first boot performs no website
 commit or push.
 
+## Add another SSH login key
+
+Normal OpenSSH login is public-key-only by default. To enroll a key from a new
+computer, use the existing login to enable password authentication for `piper`
+and set a strong password:
+
+```sh
+ssh -t pi-lan sudo pi-ssh-password-auth enable
+```
+
+On the new computer, send its public key with the password. `ssh-copy-id` adds
+the key to `/home/piper/.ssh/authorized_keys` only after the password login
+succeeds:
+
+```sh
+ssh-copy-id -o PreferredAuthentications=password \
+  -o PubkeyAuthentication=no -i ~/.ssh/id_ed25519.pub \
+  piper@piper-pi.local
+```
+
+Verify key-only login from the new computer, then turn password authentication
+off again:
+
+```sh
+ssh -o PreferredAuthentications=publickey \
+  -o PasswordAuthentication=no piper@piper-pi.local
+ssh -t pi-lan sudo pi-ssh-password-auth disable
+```
+
+This enrollment path is for the Pi's normal OpenSSH daemon. `ssh pi` uses
+Tailscale SSH and its tailnet identity policy; it does not use the Pi password.
+
 ## Updates
 
 The Pi checks `main` every five minutes and applies changed configuration. A
