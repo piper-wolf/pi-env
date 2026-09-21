@@ -21,7 +21,7 @@ done
 [[ $EUID -eq 0 ]] || { echo 'pi-update must run as root' >&2; exit 1; }
 install -d -m 0755 /run/lock /var/lib/pi-env
 exec 9>"$lock"
-flock -n 9 || { echo 'another pi update is already running' >&2; exit 0; }
+flock -w 1200 9 || { echo 'timed out waiting for another pi update' >&2; exit 1; }
 
 if [[ ! -d "$repo/.git" ]]; then
   install -d -o piper -g piper /home/piper/repos

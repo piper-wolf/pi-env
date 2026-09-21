@@ -31,6 +31,7 @@
           - util-linux
         state: present
         update_cache: true
+        cache_valid_time: 1200
 
     - name: Install SSH client configuration
       ansible.builtin.copy:
@@ -113,13 +114,6 @@
         owner: "{{ pi_user }}"
         group: "{{ pi_user }}"
         mode: '0700'
-
-    - name: Create publisher Python environment and install pinned dependencies
-      ansible.builtin.pip:
-        requirements: "{{ pi_home }}/repos/pigeon-queue/requirements.txt"
-        virtualenv: "{{ pi_home }}/repos/pigeon-queue/.venv"
-        virtualenv_command: python3 -m venv
-      become_user: "{{ pi_user }}"
 
     - name: Set Pacific timezone for daily cron jobs
       ansible.builtin.file:

@@ -88,7 +88,7 @@ Tailscale SSH and its tailnet identity policy; it does not use the Pi password.
 
 ## Updates
 
-The Pi checks `main` every five minutes and applies changed configuration. A
+The Pi checks `main` every twenty minutes and applies changed configuration. A
 daily systemd timer updates packages. Updates are serialized and never reboot
 automatically.
 
@@ -110,24 +110,27 @@ Major Raspberry Pi OS releases should be installed by preparing a new card.
 
 Provisioning installs the tools and clones `~/repos/pigeon-queue` alongside the
 website. `/etc/cron.d/pigeon-queue` starts `pigeon-queue.service` daily at 10am
-America/Los_Angeles, following daylight saving. The service pulls both repos,
-then runs the queue's pinned Python environment. It publishes the first queued
-photo to the website, waits up to ten minutes for its public page to deploy, and
+America/Los_Angeles, following daylight saving. Cron first applies the latest
+`pi-env` configuration, then starts the service. The publisher holds the queue
+lock while pulling its code, installing changed pinned dependencies, and running
+the newly loaded publisher. The website is pulled immediately before publication.
+It publishes the first queued photo, waits up to ten minutes for its page to deploy, and
 then publishes it to Bluesky. The queue entry is removed only after both
 destinations succeed. The site and queue own their own pulls; provisioning
 clones them only if absent.
 
-Provisioning creates `/home/piper/repos/pigeon-queue/.venv` from the pinned
-`requirements.txt` and a mode-0700 `/home/piper/.config/pigeon-queue` directory.
+The launcher creates `/home/piper/repos/pigeon-queue/.venv` and installs pinned
+`requirements.txt` dependencies when their hash changes. Provisioning creates a
+mode-0700 `/home/piper/.config/pigeon-queue` directory.
 Install the Bluesky app password at
 `/home/piper/.config/pigeon-queue/bluesky-app-password` as owner `piper`, mode
 0600. The service passes that path in `PIGEON_BLUESKY_APP_PASSWORD_FILE` and
 keeps refreshed session data in the same restricted directory. Never store the
 password or session in either Git checkout.
 
-Use `sudo pigeon-queue-service status`, `down`, or `recreate` on the Pi (or
-`bin/queue service ...` from the queue repo). `down` persists through automatic
-updates with `/var/lib/pi-env/pigeon-queue.disabled`; `recreate` restores the cron
+Use `sudo pigeon-queue-service status`, `down`, or `recreate` on the Pi. `down`
+persists through automatic updates with `/var/lib/pi-env/pigeon-queue.disabled`;
+`recreate` restores the cron
 entry without publishing immediately. Logs: `journalctl -u pigeon-queue.service`.
 
 For an existing site post, `bin/publish --existing <queue-id>` upgrades its
@@ -136,3 +139,10 @@ queue. Repeating the same ID reuses its saved TID record key and returns the
 same post URL. During recovery, keep scheduling down, inspect the queue service
 log and `.pigeon-queue/<id>` receipt without printing credentials, and retry the
 same ID after restoring network or Git access. Do not replace the reserved TID.
+
+Code changes need no manual SSH pull: push queue/site changes to `main` and the
+next operation refreshes them. Changes to services and scheduling in `pi-env`
+apply within the twenty-minute configuration interval, and again before the daily
+job. To check launcher refresh without publishing, run `bin/publish --refresh-only`.
+Dependency refresh uses the queue lock; provisioning never changes its environment
+during a publication. Dirty or divergent checkouts still fail without discarding work.

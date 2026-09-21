@@ -2,8 +2,8 @@
 Description=Check piper-pi configuration for changes
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=5min
+OnBootSec=20min
+OnUnitActiveSec=20min
 Persistent=true
 
 [Install]
