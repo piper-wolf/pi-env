@@ -11,7 +11,9 @@ WorkingDirectory=/home/piper/repos/pigeon-queue
 Environment=HOME=/home/piper
 Environment=TZ=America/Los_Angeles
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PIGEON_BLUESKY_APP_PASSWORD_FILE=/home/piper/.config/pigeon-queue/bluesky-app-password
+Environment=PIGEON_BLUESKY_SESSION_FILE=/home/piper/.config/pigeon-queue/bluesky-session.json
 # Load today's script only after refreshing the checkout. The publisher pulls
 # again under its lock before selecting a photo.
-ExecStart=/bin/bash -c 'test -z "$(git status --porcelain)" && git pull --ff-only origin main && exec bin/publish'
+ExecStart=/bin/bash -c 'test -z "$(git status --porcelain)" && git pull --ff-only origin main && exec .venv/bin/python bin/publish'
 TimeoutStartSec=30min

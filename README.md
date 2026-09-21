@@ -111,10 +111,28 @@ Major Raspberry Pi OS releases should be installed by preparing a new card.
 Provisioning installs the tools and clones `~/repos/pigeon-queue` alongside the
 website. `/etc/cron.d/pigeon-queue` starts `pigeon-queue.service` daily at 10am
 America/Los_Angeles, following daylight saving. The service pulls both repos,
-publishes the first queued photo, and removes it only after the site push succeeds.
-The site and queue own their own pulls; provisioning clones them only if absent.
+then runs the queue's pinned Python environment. It publishes the first queued
+photo to the website, waits up to ten minutes for its public page to deploy, and
+then publishes it to Bluesky. The queue entry is removed only after both
+destinations succeed. The site and queue own their own pulls; provisioning
+clones them only if absent.
+
+Provisioning creates `/home/piper/repos/pigeon-queue/.venv` from the pinned
+`requirements.txt` and a mode-0700 `/home/piper/.config/pigeon-queue` directory.
+Install the Bluesky app password at
+`/home/piper/.config/pigeon-queue/bluesky-app-password` as owner `piper`, mode
+0600. The service passes that path in `PIGEON_BLUESKY_APP_PASSWORD_FILE` and
+keeps refreshed session data in the same restricted directory. Never store the
+password or session in either Git checkout.
 
 Use `sudo pigeon-queue-service status`, `down`, or `recreate` on the Pi (or
 `bin/queue service ...` from the queue repo). `down` persists through automatic
 updates with `/var/lib/pi-env/pigeon-queue.disabled`; `recreate` restores the cron
 entry without publishing immediately. Logs: `journalctl -u pigeon-queue.service`.
+
+For an existing site post, `bin/publish --existing <queue-id>` upgrades its
+legacy receipt and publishes that exact post to Bluesky without changing the
+queue. Repeating the same ID reuses its saved TID record key and returns the
+same post URL. During recovery, keep scheduling down, inspect the queue service
+log and `.pigeon-queue/<id>` receipt without printing credentials, and retry the
+same ID after restoring network or Git access. Do not replace the reserved TID.

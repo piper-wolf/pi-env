@@ -13,10 +13,10 @@ case "${1:-status}" in
     echo 'Daily publishing is down. Repositories and history are preserved.' ;;
   provision|recreate)
     if [[ $1 == recreate ]]; then rm -f "$disabled"; fi
-    [[ ! -e $disabled ]] || { echo 'Pigeon queue is deliberately down.'; exit 0; }
     install -m 0644 "$repo/systemd/pigeon-queue.service" /etc/systemd/system/pigeon-queue.service
-    install -m 0644 "$repo/cron/pigeon-queue" /etc/cron.d/pigeon-queue
     systemctl daemon-reload
+    [[ ! -e $disabled ]] || { echo 'Pigeon queue is deliberately down; service configuration updated.'; exit 0; }
+    install -m 0644 "$repo/cron/pigeon-queue" /etc/cron.d/pigeon-queue
     systemctl enable --now cron
     echo 'Daily publishing scheduled for 10am America/Los_Angeles.' ;;
   status)
