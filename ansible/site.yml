@@ -115,7 +115,7 @@
         group: "{{ pi_user }}"
         mode: '0700'
 
-    - name: Set Pacific timezone for daily cron jobs
+    - name: Set Pacific timezone
       ansible.builtin.file:
         src: /usr/share/zoneinfo/America/Los_Angeles
         dest: /etc/localtime
@@ -129,7 +129,7 @@
         mode: '0755'
         remote_src: true
 
-    - name: Install pigeon queue cron and service unless deliberately down
+    - name: Install pigeon queue service and timers unless deliberately down
       ansible.builtin.command: /usr/local/sbin/pigeon-queue-service provision
       changed_when: false
 
