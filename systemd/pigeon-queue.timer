@@ -1,0 +1,9 @@
+[Unit]
+Description=Publish a pigeon daily, recovering missed runs after boot
+
+[Timer]
+OnCalendar=*-*-* 10:00:00 America/Los_Angeles
+Persistent=true
+
+[Install]
+WantedBy=timers.target

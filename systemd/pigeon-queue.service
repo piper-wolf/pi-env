@@ -2,6 +2,7 @@
 Description=Publish the next queued pigeon photo
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=0
 ConditionPathExists=!/var/lib/pi-env/pigeon-queue.disabled
 
 [Service]
@@ -14,5 +15,8 @@ Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=PIGEON_BLUESKY_APP_PASSWORD_FILE=/home/piper/.config/pigeon-queue/bluesky-app-password
 Environment=PIGEON_BLUESKY_SESSION_FILE=/home/piper/.config/pigeon-queue/bluesky-session.json
 # The launcher locks, pulls, installs changed dependencies, then loads the publisher.
+ExecStartPre=+/usr/local/sbin/pi-update
 ExecStart=/usr/bin/python3 bin/publish
 TimeoutStartSec=45min
+Restart=on-failure
+RestartSec=20min

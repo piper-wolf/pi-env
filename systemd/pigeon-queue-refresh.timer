@@ -1,0 +1,9 @@
+[Unit]
+Description=Keep pigeon publisher current with main
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=20min
+
+[Install]
+WantedBy=timers.target

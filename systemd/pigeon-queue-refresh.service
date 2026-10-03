@@ -1,0 +1,14 @@
+[Unit]
+Description=Refresh pigeon publisher code and dependencies without posting
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=!/var/lib/pi-env/pigeon-queue.disabled
+
+[Service]
+Type=oneshot
+User=piper
+WorkingDirectory=/home/piper/repos/pigeon-queue
+Environment=HOME=/home/piper
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 bin/publish --refresh-only
+TimeoutStartSec=25min

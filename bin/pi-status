@@ -40,8 +40,9 @@ printf 'update timer: '; systemctl is-active pi-env-update.timer 2>/dev/null || 
 printf 'pigeon queue: '
 if [[ -e /var/lib/pi-env/pigeon-queue.disabled ]]; then
   echo down
-elif [[ -f /etc/cron.d/pigeon-queue ]]; then
-  echo 'scheduled daily at 10am Pacific (America/Los_Angeles)'
+elif systemctl is-active --quiet pigeon-queue.timer; then
+  echo 'scheduled daily at 10am Pacific; persistent across boots, retrying failures every 20min'
+  printf 'pigeon refresh timer: '; systemctl is-active pigeon-queue-refresh.timer
 else
   echo not-installed
 fi
