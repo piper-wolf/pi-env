@@ -2,7 +2,8 @@
 
 Repeatable headless setup for a Raspberry Pi 4 running Raspberry Pi OS Lite
 64-bit. The card boots on Ethernet, enables SSH, joins Tailscale, installs the
-managed configuration, and checks this repository for updates.
+chezmoi-managed configuration, then stops. This repository owns only image
+preparation and initial bootstrapping; it has no recurring update timer.
 
 The image itself is intentionally not committed. `bin/prepare-card` downloads
 and verifies the pinned Raspberry Pi OS image, writes it to an explicitly
@@ -86,65 +87,58 @@ ssh -t pi-lan sudo pi-ssh-password-auth disable
 This enrollment path is for the Pi's normal OpenSSH daemon. `ssh pi` uses
 Tailscale SSH and its tailnet identity policy; it does not use the Pi password.
 
-## Updates
+## Configuration and updates
 
-The Pi checks `main` every twenty minutes and applies changed configuration. A
-daily systemd timer updates packages. Updates are serialized and never reboot
-automatically.
+Ongoing configuration belongs to [`piper-wolf/dotfiles`](https://github.com/piper-wolf/dotfiles),
+using the `claw/linux/apt/server` profile. First boot installs chezmoi and runs
+`ORGANIZATION=claw DEVICE=server chezmoi init --ssh --apply piper-wolf/dotfiles`.
+The dedicated GitHub key and authorized login keys remain local and unmanaged.
+The temporary system SSH client rule lets bootstrap clone dotfiles; chezmoi
+then installs the user SSH config and retires that rule.
+
+Dotfiles owns Git/SSH client configuration, packages, timezone, repository
+clones, status/enrollment/control commands, and the publisher systemd units.
+`dotfiles-update.timer` applies clean, fast-forward dotfiles changes every twenty
+minutes; `server-os-update.timer` updates OS packages daily without rebooting.
+`pi-update` remains a compatibility command installed by dotfiles:
 
 ```sh
-sudo pi-update             # configuration from origin/main
-sudo pi-update --os        # configuration plus apt update/full-upgrade
+chezmoi diff
+chezmoi update
+sudo pi-update             # chezmoi update as piper
+sudo pi-update --os        # plus apt update/full-upgrade
 pi-status
 ```
 
-For recovery, apply a known commit and return to tracking `main` later:
-
-```sh
-sudo pi-update --pin <commit>
-sudo pi-update --follow-main
-```
-
+Commit local dotfiles source edits before updating. For recovery, use Git in the
+chezmoi source checkout and `chezmoi apply`; the old `pi-update --pin` interface
+is retired. Updating this image-builder repository never reapplies live configuration.
 Major Raspberry Pi OS releases should be installed by preparing a new card.
-# Daily pigeon publishing
 
-Provisioning installs the tools and clones `~/repos/pigeon-queue` alongside the
-website. The enabled `pigeon-queue.timer` starts `pigeon-queue.service` daily at
-10am America/Los_Angeles, following daylight saving. Its persistent schedule
-recovers a missed run after boot; failures retry every twenty minutes. The service
-first applies the latest `pi-env` configuration. `pigeon-queue-refresh.timer`
-refreshes code and dependencies two minutes after boot and every twenty minutes
-without posting, using the same queue lock as publication. The publisher holds the queue
-lock while pulling its code, installing changed pinned dependencies, and running
-the newly loaded publisher. The website is pulled immediately before publication.
-It publishes the first queued photo, waits up to ten minutes for its page to deploy, and
-then publishes it to Bluesky. The queue entry is removed only after both
-destinations succeed. The site and queue own their own pulls; provisioning
-clones them only if absent.
+## Daily pigeon publishing
 
-The launcher creates `/home/piper/repos/pigeon-queue/.venv` and installs pinned
-`requirements.txt` dependencies when their hash changes. Provisioning creates a
-mode-0700 `/home/piper/.config/pigeon-queue` directory.
-Install the Bluesky app password at
-`/home/piper/.config/pigeon-queue/bluesky-app-password` as owner `piper`, mode
-0600. The service passes that path in `PIGEON_BLUESKY_APP_PASSWORD_FILE` and
-keeps refreshed session data in the same restricted directory. Never store the
-password or session in either Git checkout.
+Dotfiles installs the dependencies and clones `~/repos/pigeon-queue` and
+`~/repos/piper-wolf.github.io` only if absent. The enabled publisher timer runs at
+10am America/Los_Angeles with persistent missed-run recovery and twenty-minute
+failure retries. The refresh timer updates queue code/dependencies every twenty
+minutes without posting. Publication refreshes the queue and website using their
+own locks; it no longer invokes pi-env or Ansible.
 
-Use `sudo pigeon-queue-service status`, `down`, or `recreate` on the Pi. `down`
-persists through automatic updates with `/var/lib/pi-env/pigeon-queue.disabled`;
-`recreate` restores both timers; a missed daily run may publish immediately. Logs: `journalctl -u pigeon-queue.service`.
+Credentials stay in `/home/piper/.config/pigeon-queue` (0700), with the Bluesky
+app password in `bluesky-app-password` (0600). They are not managed by either
+repository. `sudo pigeon-queue-service status|down|recreate` controls scheduling;
+`down` persists in `/var/lib/pigeon-queue/disabled`. Migration preserves a prior
+`/var/lib/pi-env/pigeon-queue.disabled` marker and retires the old update timers.
+A missed daily run may publish when scheduling is recreated. Logs are available
+with `journalctl -u pigeon-queue.service`.
 
-For an existing site post, `bin/publish --existing <queue-id>` upgrades its
-legacy receipt and publishes that exact post to Bluesky without changing the
-queue. Repeating the same ID reuses its saved TID record key and returns the
-same post URL. During recovery, keep scheduling down, inspect the queue service
-log and `.pigeon-queue/<id>` receipt without printing credentials, and retry the
-same ID after restoring network or Git access. Do not replace the reserved TID.
+Push routine queue/site changes to their `main` branches; their launchers pull
+without requiring an SSH deployment. Push service/configuration changes to
+`dotfiles/main`, then apply with chezmoi or let its timer update. For publisher
+recovery and exact-post retries, follow the queue README and raspberry-pi-ops skill.
 
-Code changes need no manual SSH pull: push queue/site changes to `main` and the
-refresh timer or publication refreshes them within twenty minutes. Changes to services and scheduling in `pi-env`
-apply within the twenty-minute configuration interval, and again before the daily
-job. To check launcher refresh without publishing, run `bin/publish --refresh-only`.
-Dependency refresh uses the queue lock; provisioning never changes its environment
-during a publication. Dirty or divergent checkouts still fail without discarding work.
+## Checks
+
+Run `python3 tests/bootstrap.py` before pushing bootstrap changes. It checks shell
+syntax, fresh chezmoi installation, the initial profile handoff, and repeated boot
+in an isolated mock filesystem; it never flashes a card or touches live services.

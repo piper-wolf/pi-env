@@ -2,7 +2,6 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
-repo=/opt/pi-env
 state=/var/lib/pi-env
 log=/var/log/pi-env-bootstrap.log
 mkdir -p "$state"
@@ -104,21 +103,26 @@ if ! tailscale ip -4 >/dev/null 2>&1; then
     exit 1
   fi
   write_status authenticating-tailscale
-  tailscale up --ssh --auth-key="file:/root/pi-env.tailscale-auth-key" --hostname=piper-pi
+  tailscale up --ssh --operator=piper --auth-key="file:/root/pi-env.tailscale-auth-key" --hostname=piper-pi
   tailscale ip -4 >/dev/null
   shred --remove /root/pi-env.tailscale-auth-key
 elif [[ -s /root/pi-env.tailscale-auth-key ]]; then
   shred --remove /root/pi-env.tailscale-auth-key
 fi
 
-if ! command -v ansible-playbook >/dev/null 2>&1; then
-  write_status installing-ansible
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install --yes ansible-core
+write_status installing-dotfiles
+install -d -m 0755 -o piper -g piper /home/piper/.local /home/piper/.local/bin /home/piper/repos
+chown piper:piper /home/piper
+if ! [[ -x /home/piper/.local/bin/chezmoi ]]; then
+  installer=$(mktemp)
+  curl --fail --silent --show-error https://get.chezmoi.io >"$installer"
+  chmod 0644 "$installer"
+  sudo -H -u piper sh "$installer" -b /home/piper/.local/bin
+  rm -f "$installer"
 fi
-
 write_status configuring
-ansible-playbook --connection=local --inventory=localhost, "$repo/ansible/site.yml"
+sudo -H -u piper env ORGANIZATION=claw DEVICE=server \
+  /home/piper/.local/bin/chezmoi init --ssh --apply piper-wolf/dotfiles
 touch "$state/bootstrap-complete"
 write_status complete
 printf '%s bootstrap complete\n' "$(date --iso-8601=seconds)"
